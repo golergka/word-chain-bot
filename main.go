@@ -4,30 +4,36 @@ import "log"
 import "os"
 import "bufio"
 import "strings"
+import "math/rand"
 
 import "github.com/go-telegram-bot-api/telegram-bot-api"
 
-var englishNouns []string
+var englishNouns map[rune][]string = make(map[rune][]string)
 
-func readLines(path string) ([]string, error) {
+func addNoun(firstRune rune, noun string) {
+    englishNouns[firstRune] = append(englishNouns[firstRune], noun)
+}
+
+func readNoun(noun string) {
+    addNoun([]rune(noun)[0], noun)
+}
+
+func readNounsFromFile(path string) error {
     file, err := os.Open(path)
     if err != nil {
-        return nil, err
+        return err
     }
     defer file.Close()
 
-    var lines[] string
     scanner := bufio.NewScanner(file)
     for scanner.Scan() {
-        lines = append(lines, scanner.Text())
+        readNoun(scanner.Text())
     }
-    return lines, scanner.Err()
+    return scanner.Err()
 }
 
 func main() {
-    var err error
-
-    englishNouns, err = readLines("english_nouns.txt")
+    err := readNounsFromFile("english_nouns.txt")
     if err != nil {
         log.Panic(err)
     }
@@ -76,7 +82,10 @@ func gameTurn(playerTurn string) string {
         return "There are two many words! Which do you choose?"
     }
 
-    return "Uhm, I guess I should give you some word."
+    lower := strings.ToLower(playerTurn)
+    firstRune := []rune(lower)[0]
+    answers := englishNouns[firstRune]
+    return answers[rand.Intn(len(answers))]
 }
 
 func handleStartCommand(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
