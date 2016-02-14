@@ -1,6 +1,7 @@
 package main
 
 import "unicode"
+import "strings"
 import "math/rand"
 import "bufio"
 
@@ -35,4 +36,13 @@ func (dict *Dictionary) RandomWord(first rune) string {
 
 func (dict *Dictionary) RandomFirst() rune {
     return dict.index[rand.Intn(len(dict.index))]
+}
+
+func (dict *Dictionary) Contains(word string) bool {
+	lower := strings.ToLower(word)
+	first := []rune(lower)[0]
+	for _, w := range dict.words[first] {
+		if w == lower { return true }
+	}
+	return false
 }

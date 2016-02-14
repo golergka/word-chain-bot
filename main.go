@@ -45,7 +45,7 @@ func main() {
             if strings.Index(update.Message.Text, "/start") == 0 {
                 handleStartCommand(bot, update)
             } else if game, ok := games[update.Message.Chat.ID]; ok {
-                game.Turn(update)
+                game.Turn(update.Message.Text)
             } else {
                 newGame := MakeGame(bot, update.Message.Chat.ID, *englishNounDict)
                 newGame.Start()
