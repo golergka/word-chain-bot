@@ -4,36 +4,21 @@ import "log"
 import "os"
 import "bufio"
 import "strings"
-import "math/rand"
 
 import "github.com/go-telegram-bot-api/telegram-bot-api"
 
-var englishNouns map[rune][]string = make(map[rune][]string)
-
-func addNoun(firstRune rune, noun string) {
-    englishNouns[firstRune] = append(englishNouns[firstRune], noun)
-}
-
-func readNoun(noun string) {
-    addNoun([]rune(noun)[0], noun)
-}
-
-func readNounsFromFile(path string) error {
+func makeDictionaryFromPath(path string) (*Dictionary, error) {
     file, err := os.Open(path)
     if err != nil {
-        return err
+        return nil, err
     }
     defer file.Close()
 
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        readNoun(scanner.Text())
-    }
-    return scanner.Err()
+    return MakeDictionary(bufio.NewScanner(file))
 }
 
 func main() {
-    err := readNounsFromFile("english_nouns.txt")
+    englishNounDict, err := makeDictionaryFromPath("english_nouns.txt")
     if err != nil {
         log.Panic(err)
     }
@@ -49,44 +34,28 @@ func main() {
     updateConfig.Timeout = 60
 
     updates, err := bot.GetUpdatesChan(updateConfig)
+    if err != nil {
+        log.Panic(err)
+    }
 
-    for u := range updates {
-        go handleUpdate(bot, u)
+    for update := range updates {
+        go func() {
+            log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
+
+            if strings.Index(update.Message.Text, "/start") == 0 {
+                handleStartCommand(bot, update)
+            } else if game, ok := games[update.Message.Chat.ID]; ok {
+                game.Turn(update)
+            } else {
+                newGame := MakeGame(bot, update.Message.Chat.ID, *englishNounDict)
+                newGame.Start()
+                games[update.Message.Chat.ID] = newGame
+            }
+        }()
     }
 }
 
-func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-    log.Printf("[%s] %s",
-            update.Message.From.UserName, 
-            update.Message.Text)
-
-    if (strings.Index(update.Message.Text, "/start") == 0) {
-        handleStartCommand(bot, update)
-    } else {
-        handleTurn(bot, update)
-    }
-}
-
-func handleTurn(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-    reply := gameTurn(update.Message.Text)
-    msg := tgbotapi.NewMessage(update.Message.Chat.ID, reply)
-    bot.Send(msg)
-}
-
-func gameTurn(playerTurn string) string {
-    words := strings.Fields(playerTurn)
-    switch {
-    case len(words) == 0:
-        return "I don't see any words here."
-    case len(words) > 1:
-        return "There are two many words! Which do you choose?"
-    }
-
-    lower := strings.ToLower(playerTurn)
-    firstRune := []rune(lower)[0]
-    answers := englishNouns[firstRune]
-    return answers[rand.Intn(len(answers))]
-}
+var games map[int]Game = make(map[int]Game)
 
 func handleStartCommand(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
     reply := "Hi. This is a simple word chain game bot.\n\n" +
